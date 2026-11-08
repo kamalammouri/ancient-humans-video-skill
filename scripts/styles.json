@@ -122,22 +122,22 @@
    "insert_prefix": "Bold 2D cartoon illustration, thick clean black ink outlines, saturated colours, flat plain background, 16:9 wide format.",
    "scene_bg_nochar": "Full painted set with real depth; all people in the picture are drawn one single way: for a named civilisation or a living people, detailed cartoon humans with real faces, hair and clothes and no white stick figures anywhere; for a prehistoric tribe, plain white stick figures with dot eyes."
   },
-  "oxygen-neon": {
-   "label": "Oxygen Odds : bioluminescence néon sur noir absolu, créatures en lignes lumineuses, plongeur-joueur à la combinaison orange",
-   "prefix": "Bioluminescent neon illustration on a pitch-black deep-sea background, creatures drawn with glowing contour lines and soft inner glow in cyan, electric blue and magenta, drifting glowing particles, subtle volumetric haze, high contrast, no daylight, 16:9, cinematic wide composition, large areas of pure black.",
-   "character": "Recurring character: the player, a tiny scuba diver in a bright orange drysuit with a single cyan headlamp beam and a small glowing oxygen gauge on the wrist, {costume}. Keep this exact diver design in every image and keep him small against the creature.",
-   "costume": "hovering still, headlamp on",
-   "scene_bg": "Open black water, faint glowing particles, a distant hint of the surface far above only at shallow levels.",
+  "nature-neon": {
+   "label": "Nature Odds : contours néon lumineux sur nuit noire (mer, savane, jungle, glace), explorateur orange minuscule",
+   "prefix": "Neon glowing contour illustration on a pitch-black night background, animals drawn with glowing contour lines and soft inner glow in cyan, electric blue and magenta, the habitat (deep water, savanna grass, jungle leaves, ice, rocks) only suggested by faint glowing outlines, drifting glowing particles, subtle haze, high contrast, no daylight, 16:9, cinematic wide composition, large areas of pure black.",
+   "character": "Recurring character: the player, a tiny explorer in a bright orange outfit (a drysuit underwater, a jacket on land) with a single cyan headlamp beam and a small glowing survival device on the wrist, {costume}. Keep this exact explorer design in every image and keep him small against the animal.",
+   "costume": "standing still, headlamp on",
+   "scene_bg": "The habitat at night, only faint glowing outlines of its shapes, glowing particles.",
    "insert_bg": "Pure black background with a faint cyan hexagonal grid, the subject centred, glowing, generous empty space.",
-   "dark": "Abyss variant: pitch black, only the creature's own bioluminescence and the diver's headlamp light the scene.",
-   "dark_scene_bg": "Pitch-black abyss, a few glowing particles, nothing else.",
+   "dark": "Darkest variant: pitch black, only the animal's own glow and the explorer's headlamp light the scene.",
+   "dark_scene_bg": "Pitch-black night, a few glowing particles, nothing else.",
    "dark_insert_bg": "Pure black background, the subject centred and glowing.",
-   "pov_hands": "the diver's orange-gloved hands and glowing wrist gauge at the bottom of the frame, first-person view",
+   "pov_hands": "the explorer's orange-gloved hands and glowing wrist device at the bottom of the frame, first-person view",
    "suffix": "no text, no letters, no numbers, no HUD, no user interface, no labels, no watermark, no logos.",
    "thumbnail": "{prefix} {prop} enormous, filling the right two-thirds, glowing eyes and teeth, {emotion}, the tiny orange diver with a cyan headlamp in the lower left, the top-left quarter pure black and empty for the HUD. {suffix}",
-   "qc": "pure black background, glowing neon contour creature (cyan/blue/magenta), tiny diver in orange drysuit with cyan headlamp, anatomically correct species, no text or HUD drawn",
+   "qc": "pure black background, glowing neon contour animal (cyan/blue/magenta), habitat only as faint outlines, tiny orange explorer with cyan headlamp, anatomically correct species, no text or HUD drawn",
    "insert_prefix": "Bioluminescent neon infographic illustration, single glowing subject on a pure black background, 16:9, centred composition.",
-   "scene_bg_nochar": "Open black water, the creature alone, its glow the only light."
+   "scene_bg_nochar": "The habitat at night, the animal alone, its glow the only light."
   }
  }
 }
