@@ -51,8 +51,10 @@ def chapters():
     out = []
     for block in re.split(r"^## ", text, flags=re.M)[1:]:
         head, *lines = block.strip().splitlines()
+        if not head.lower().startswith("chapter"): continue      # "## Sources for the description" and other notes are not spoken
         m = re.match(r"Chapter (\d+) — (.+)", head)
         assert m, f"bad chapter header: {head!r} (expected '## Chapter N — title')"
+        lines = [l for l in lines if not l.strip().startswith("<!--")]   # reviewer comments are not spoken
         out.append((int(m.group(1)), m.group(2).strip(), [l.strip() for l in lines if l.strip()]))
     return out
 

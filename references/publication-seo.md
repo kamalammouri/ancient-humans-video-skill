@@ -2,7 +2,7 @@
 
 ## 0. Ce qui change pour Ancient Humans Video (4 novembre 2026)
 
-Ce fichier vient du skill `why-explainer-video` ; ses sections 1 à 6 restent valables (fiche de publication, heure ET, Short, doublage) sauf les points ci-dessous, qui priment.
+Ce fichier reprend la fiche de publication générique de l'ancien skill explainer ; ses sections 1 à 6 restent valables (fiche de publication, heure ET, Short, doublage) sauf les points ci-dessous, qui priment.
 
 | Champ | Ancient Humans Video |
 |---|---|
@@ -17,7 +17,7 @@ Ce fichier vient du skill `why-explainer-video` ; ses sections 1 à 6 restent va
 | **Short** | temps 1 + temps 2 (le geste + « remove… you will be shocked by a terrifying truth »), 35 à 55 s, recadré 9:16, publié le lendemain, vidéo associée = la longue. |
 
 
-## 0-bis. Fiche de publication générique (why-explainer) : toujours livrée, dans cet ordre, avec les remplacements du §0
+## 0-bis. Fiche de publication générique : toujours livrée, dans cet ordre, avec les remplacements du §0
 
 Chaque livraison se termine par un bloc « Publication » prêt à coller dans YouTube Studio. Les oublis coûtent une relance : ne jamais omettre une ligne, même évidente.
 
@@ -31,7 +31,7 @@ Chaque livraison se termine par un bloc « Publication » prêt à coller dans Y
 | Heure de publication | **18 h heure du Maroc pour The Hidden Bargain** (choix de l'utilisateur : 12 h à 14 h ET toute l'année, UTC+1 ou UTC+0 pendant le ramadan). Règle générale : **12 h à 14 h heure de l'Est**, jeudi à samedi de préférence, programmée dans Studio, jamais après 16 h ET. Donner la date et l'heure en ET **et** dans le fuseau de l'utilisateur, calculées par code : `python -c "from datetime import datetime;from zoneinfo import ZoneInfo as Z;t=datetime(2026,11,5,12,tzinfo=Z('America/New_York'));print(t.astimezone(Z('Europe/Paris')))"` (12 h ET = 18 h à Paris la plupart de l'année, 17 h pendant les semaines de décalage des changements d'heure). Puis l'onglet « Quand vos spectateurs sont sur YouTube » dès qu'il existe |
 | Public | « Non, pas conçu pour les enfants » (sinon commentaires, écran de fin et recommandations sont coupés) |
 | Commentaires | activés ; vérifier après la mise en ligne que la section commentaires s'affiche |
-| Short | Short d'appel 9:16 (étape 10 du workflow), titre + `#shorts`, « Vidéo associée » = la vidéo longue, publié le lendemain de 12 h à 14 h ET |
+| **Short** | Short d'appel 9:16 (étape 10 du workflow), publié le lendemain de 12 h à 14 h ET, « Vidéo associée » = la vidéo longue. **Bloc Short complet, livré dans un fichier à part `short-titre-description-tags.txt` à côté de `short.mp4`** : titre ≤ 100 caractères (le mot-clé principal + un levier de curiosité, puis `#shorts`) et 2 alternatives ; description de 2 ou 3 lignes (la phrase d'accroche du Short, la question du titre de la longue, « ▶ Full story: [lien] ») puis 4 à 6 hashtags dont `#shorts` ; 8 à 12 tags ≤ 500 caractères (ils pèsent peu sur un Short) ; commentaire épinglé qui renvoie à la longue. |
 | Contenu modifié ou synthétique | **oui** (voix et images générées par IA) : YouTube l'exige pour une voix réaliste |
 | Miniature | fichier 1280 × 720, < 2 Mo, texte ajouté par code |
 | Écran de fin | 5 dernières secondes : bouton Abonnement + emplacement « vidéo suivante » |
@@ -124,3 +124,20 @@ Activer dans YouTube Studio le doublage automatique et la traduction des titres 
 - Quand une vidéo décolle : une **suite dans les 48 h** (même sujet, autre angle ou « part 2 »), avec les liens vers les parties précédentes en description, comme Monk Mode Films et Chris Gu (« One Room series »).
 - Description à la façon des références : logline en 2 ou 3 phrases, **une maxime d'une ligne** (« Motivation gets you started. Discipline keeps you going. »), la question au spectateur, les chapitres, les **sources** (Afterimath liste chaque étude citée), la ligne d'abonnement, 3 à 5 hashtags ; pour un sujet sensible (santé mentale, addiction), une ligne d'aide (« If this feels out of your control, you're not alone: findahelpline.com »).
 - Carte finale « NEXT : [titre suivant] » 5 secondes ; une chaîne associée en collaboration (fonction « collab » de YouTube) partage les vues entre deux chaînes.
+
+## 8. Posts YouTube (onglet Posts, ex-Communauté) : 4 posts par vidéo, agent **Community manager**
+Vérifié le 5 novembre 2026 (aide YouTube « Create a post » et guides tiers ; refaire la vérification si Studio refuse un post).
+- **Disponibilité** : Studio → Paramètres → Chaîne → Éligibilité des fonctionnalités ; les fonctionnalités avancées doivent être actives, sans avertissement en cours, et l'audience ne doit pas être « conçue pour les enfants ». Les anciens seuils de 500 ou 1 000 abonnés ne s'appliquent plus.
+- **Types** : texte, image (une ou plusieurs), sondage texte (options ≤ 65 caractères), sondage image (options ≤ 36 caractères), quiz (une seule bonne réponse, révélée après le vote, avec une explication), vidéo (une vidéo ou un Short de la chaîne). 4 options au plus pour rester dans toutes les limites. YouTube limite le nombre de posts par 24 h : un post par jour au plus.
+- **Image** : carrée 1:1, 1080 × 1080, JPG de moins de 16 Mo, faite par `scripts/thumb.py … --square=<x>` à partir d'une image Flow de la vidéo (bandeau de 2 à 4 mots facultatif, même lint que la miniature).
+- **Calendrier** (cadence d'une vidéo tous les 3 jours, heure de publication 12 h–14 h ET) :
+
+| Post | Quand | Type | Contenu |
+|---|---|---|---|
+| P1 | la veille | sondage (texte ou image) | la question du titre posée au spectateur (« How do you think ancient women handled their period? ») et 3 ou 4 réponses plausibles, dont celle de la vidéo ; pas de lien |
+| P2 | 1 h après la mise en ligne | image + lien | l'image la plus forte de la vidéo, le geste d'ouverture en une phrase, la promesse, le lien, une question |
+| P3 | le lendemain (jour du Short) | quiz | le fait le plus surprenant (`facts.md`), 3 ou 4 réponses, l'explication avec l'horodatage du chapitre et le lien |
+| P4 | le surlendemain | sondage texte | « What should the next video be? » : 4 gestes de la banque d'idées (SKILL.md §1) ; le gagnant sert au choix du sujet suivant |
+
+- **Rédaction** : anglais américain, 2ᵉ personne, 1 à 3 phrases avant le lien ou la question, 0 à 2 hashtags, pas de « smash like ». Les mêmes règles de sensibilité que la vidéo : sur un sujet intime, aucun mot cru dans l'image ni dans les options. Réponds aux premiers commentaires du post dans l'heure.
+- **Livrable** : `posts-youtube.md` (type, date et heure ET + heure locale, texte prêt à coller, options, bonne réponse, image) et `posts/P1.jpg`…, copiés dans le dossier de livraison.

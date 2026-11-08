@@ -17,14 +17,27 @@ def lint(text):
     return errors   # "WHY APPENDIX?" (singular noun) is left to the copy editor: "WHY BALD?!" is fine and a regex can't tell them apart
 
 if __name__ == "__main__":
-    args = [a for a in sys.argv[1:] if a != "--force"]
-    src, dst, text = args[0], args[1], args[2]
-    if "--force" not in sys.argv and (errs := lint(text)): sys.exit("thumbnail text refused: " + "; ".join(errs))
-    im = Image.open(src).convert("RGB").resize((1280, 720), Image.LANCZOS)
+    # --square[=x]: 1080x1080 image for a YouTube post, square cut centred at x (0 = left edge, 1 = right, default 0.5);
+    # text "" = no band (python thumb.py flow/period/F027.png posts/P1.jpg "" --square=0.3)
+    flags = [a for a in sys.argv[1:] if a.startswith("--")]
+    src, dst, text = [a for a in sys.argv[1:] if not a.startswith("--")][:3]
+    sq = next((float(a.split("=", 1)[1]) if "=" in a else 0.5 for a in flags if a.startswith("--square")), None)
+    # "LINE ONE|LINE TWO" = two lines; --noband = yellow text straight on the image (the scene keeps its top third empty)
+    if text and "--force" not in flags and (errs := lint(text.replace("|", " "))): sys.exit("thumbnail text refused: " + "; ".join(errs))
+    im = Image.open(src).convert("RGB")
+    if sq is None:
+        im = im.resize((1280, 720), Image.LANCZOS)
+    else:
+        w, h = im.size; s = min(w, h); x0 = round(min(max(sq * w - s / 2, 0), w - s))
+        im = im.crop((x0, 0, x0 + s, s)).resize((1080, 1080), Image.LANCZOS)
+    W = im.size[0]
     d = ImageDraw.Draw(im)
-    d.rectangle([0, 0, 1280, 200], fill=(26, 40, 78))                       # navy band
-    f = ImageFont.truetype("C:/Windows/Fonts/impact.ttf", 150)
-    while d.textlength(text, font=f) > 1180: f = ImageFont.truetype("C:/Windows/Fonts/impact.ttf", f.size - 6)
-    d.text((640, 100), text, font=f, fill=(242, 196, 70), anchor="mm", stroke_width=10, stroke_fill=(0, 0, 0))
+    if text:
+        lines = text.split("|"); bh = 200 if len(lines) == 1 else 300
+        if "--noband" not in flags: d.rectangle([0, 0, W, bh], fill=(26, 40, 78))   # navy band
+        f = ImageFont.truetype("C:/Windows/Fonts/impact.ttf", 150 if len(lines) == 1 else 125)
+        while max(d.textlength(l, font=f) for l in lines) > W - 100: f = ImageFont.truetype("C:/Windows/Fonts/impact.ttf", f.size - 6)
+        for n, l in enumerate(lines):
+            d.text((W // 2, bh * (2 * n + 1) // (2 * len(lines))), l, font=f, fill=(242, 196, 70), anchor="mm", stroke_width=10, stroke_fill=(0, 0, 0))
     im.save(dst, quality=92, optimize=True)
     import os; print(dst, im.size, f"{os.path.getsize(dst) / 1e6:.2f} MB")

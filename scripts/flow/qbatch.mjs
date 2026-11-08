@@ -8,6 +8,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { attach, sleep, stamp } from './cdp.mjs';
+import crypto from 'node:crypto';
+// Hash guard (5 Nov 2026: four "regenerated" images were byte copies of older tiles, accepted 4 s after the click because Flow
+// re-rendered an old tile under a new URL): every image already on disk (output folder, its subfolders such as rejected-*, and
+// KNOWN_DIRS="dirA;dirB") is hashed, and a download with the same bytes is refused as an old tile.
+const md5 = (b) => crypto.createHash('md5').update(b).digest('hex');
+function knownHashes(dirs) {
+  const m = new Map();
+  for (const d of dirs) if (fs.existsSync(d)) for (const f of fs.readdirSync(d, { recursive: true }))
+    if (/\.(jpg|jpeg|png|webp)$/i.test(f)) m.set(md5(fs.readFileSync(path.join(d, f))), f);
+  return m;
+}
 
 const [src = 'prompts.json', out = 'flow/out'] = process.argv.slice(2);
 const GAP = Number(process.env.GAP || 3000), WAIT = Number(process.env.WAIT || 300_000);
@@ -17,6 +28,7 @@ const done = new Set(fs.readdirSync(out).map(f => f.replace(/\.(jpg|jpeg|png|web
 const uniq = (p) => { for (let i = 0; i + 80 <= p.length; i += 20) { const k = p.slice(i, i + 80); if (prompts.every(q => q.prompt === p || !q.prompt.includes(k))) return k; } return p; };  // first 80-char window no other prompt contains
 const todo = prompts.filter(p => !done.has(p.file)).map(p => ({ file: p.file, prompt: p.prompt, key: uniq(p.prompt) }));
 const keys = todo.map(({ file, key }) => ({ file, key }));
+const known = knownHashes([out, ...(process.env.KNOWN_DIRS || '').split(';').filter(Boolean)]);
 console.log(`${stamp()} ${prompts.length} prompts, to generate: ${todo.map(p => p.file).join(' ')}`);
 
 const { page } = await attach(); page.setDefaultTimeout(15_000);
@@ -41,11 +53,24 @@ async function download(srcUrl, file) {
     for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
     return { b64: btoa(s), type: r.headers.get('content-type') || '' };
   }, srcUrl);
+  const buf = Buffer.from(b64, 'base64'), h = md5(buf);
+  if (known.has(h)) return '';                                // an old tile tagged by mistake: not a new generation
   const ext = /png/.test(type) ? 'png' : /webp/.test(type) ? 'webp' : 'jpg';
-  const dst = path.join(out, `${file}.${ext}`); fs.writeFileSync(dst, Buffer.from(b64, 'base64')); return dst;
+  const dst = path.join(out, `${file}.${ext}`); fs.writeFileSync(dst, buf); known.set(h, `${file}.${ext}`); return dst;
 }
 const got = new Set(), t0 = Date.now();
-async function collect() { await scrollTop(); await tag(); for (const [file, u] of await ready()) if (!got.has(file)) { got.add(file); console.log(`${stamp()} ${file} ok -> ${await download(u, file)} (${Math.round((Date.now() - t0) / 1000)} s)`); } }
+async function collect() {
+  await scrollTop(); await tag();
+  for (const [file, u] of await ready()) {
+    if (got.has(file)) continue;
+    const dst = await download(u, file);
+    if (!dst) {   // untag the old tile so tag() can find the real one later
+      await page.evaluate(([f, src]) => { for (const g of document.querySelectorAll(`main [data-file="${f}"]`)) if ([...g.querySelectorAll('img')].some(i => i.src === src)) g.removeAttribute('data-file'); }, [file, u]);
+      console.log(`${stamp()} ${file} old tile ignored (same bytes as an image on disk), still waiting`); continue;
+    }
+    got.add(file); console.log(`${stamp()} ${file} ok -> ${dst} (${Math.round((Date.now() - t0) / 1000)} s)`);
+  }
+}
 
 const trig = page.getByRole('button', { name: /Déclencheur des paramètres|Settings trigger/i }).first();
 const label = (await trig.innerText().catch(() => '')).replace(/\s+/g, ' ');

@@ -17,6 +17,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { attach, sleep, stamp } from './cdp.mjs';
+import crypto from 'node:crypto';
+// Hash guard (5 Nov 2026: four "regenerated" images were byte copies of older tiles, accepted 4 s after the click because Flow
+// re-rendered an old tile under a new URL): every image already on disk (output folder, its subfolders such as rejected-*, and
+// KNOWN_DIRS="dirA;dirB") is hashed, and a download with the same bytes is refused as an old tile.
+const md5 = (b) => crypto.createHash('md5').update(b).digest('hex');
+function knownHashes(dirs) {
+  const m = new Map();
+  for (const d of dirs) if (fs.existsSync(d)) for (const f of fs.readdirSync(d, { recursive: true }))
+    if (/\.(jpg|jpeg|png|webp)$/i.test(f)) m.set(md5(fs.readFileSync(path.join(d, f))), f);
+  return m;
+}
 
 const [src = 'prompts.json', out = 'flow/out'] = process.argv.slice(2);
 const REF = process.env.REF || '';
@@ -25,6 +36,8 @@ const prompts = JSON.parse(fs.readFileSync(src, 'utf8'));
 fs.mkdirSync(out, { recursive: true });
 const done = new Set(fs.readdirSync(out).filter(f => !/\.test\./.test(f)).map(f => f.replace(/\.(jpg|jpeg|png|webp)$/i, '')));
 const todo = prompts.filter(p => !done.has(p.file));
+const known = knownHashes([out, ...(process.env.KNOWN_DIRS || '').split(';').filter(Boolean)]);
+const MIN_GEN = Number(process.env.MIN_GEN || 10_000);   // a real generation takes 20 s or more: an image sooner is an old tile
 console.log(`${stamp()} ${prompts.length} prompts, ${todo.length} to generate, pace ${PACE} ms${REF ? `, reference "${REF}"` : ''}`);
 
 const { page } = await attach(); page.setDefaultTimeout(15_000);
@@ -40,12 +53,35 @@ async function attachRef(prompt) {   // open the ingredient picker, search the r
   }
   if (await chip.count()) return true;   // already attached
   await page.getByRole('button', { name: /Ajouter des ingrédients|Add ingredients/i }).first().click(); await sleep(900);
-  const search = page.getByRole('textbox', { name: /Rechercher des éléments|Search/i }).first();
+  const search = page.getByRole('textbox', { name: /Rechercher des éléments|Search assets/i }).first();   // not the project "Search" box of the English UI (5 Nov 2026)
   if (await search.count()) { await search.fill(REF); await sleep(900); }
   const opt = page.getByRole('option', { name: new RegExp(REF.slice(0, 24).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }).first();
   if (!(await opt.count())) { await page.keyboard.press('Escape'); console.log(`${stamp()} reference "${REF}" not found in the library`); return false; }
   await opt.click(); await sleep(700); await page.keyboard.press('Escape'); await sleep(400);
-  return (await page.getByRole('button', { name: /^Ingrédient$|^Ingredient$/ }).count()) > 0;
+  for (let k = 0; k < 8; k++) {   // the chip can take 2-3 s to appear on a large project (measured 4 Nov 2026): poll instead of one 1.1 s wait
+    if ((await page.getByRole('button', { name: /^Ingrédient$|^Ingredient$/ }).count()) > 0) return true;
+    await sleep(500);
+  }
+  return false;
+}
+// Per-prompt references (5 Nov 2026, scenes with two or three recurring characters): a prompt entry with "refs": ["reference.png",
+// "second-male.png"] gets exactly those library images as ingredients, attached one after the other; REF is ignored for it.
+async function attachRefs(refs) {
+  const chips = () => page.getByRole('button', { name: /^Ingrédient$|^Ingredient$/ });
+  if (await chips().count()) { await page.getByRole('button', { name: /Effacer le prompt|Clear prompt/i }).first().click().catch(() => {}); await sleep(400); }
+  for (const r of refs) {
+    const n0 = await chips().count();
+    await page.getByRole('button', { name: /Ajouter des ingrédients|Add ingredients/i }).first().click(); await sleep(900);
+    const search = page.getByRole('textbox', { name: /Rechercher des éléments|Search assets/i }).first();
+    if (await search.count()) { await search.fill(r); await sleep(900); }
+    const opt = page.getByRole('option', { name: new RegExp(r.slice(0, 24).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }).first();
+    if (!(await opt.count())) { await page.keyboard.press('Escape'); console.log(`${stamp()} reference "${r}" not found in the library`); return false; }
+    await opt.click(); await sleep(700); await page.keyboard.press('Escape'); await sleep(400);
+    let ok = false;
+    for (let k = 0; k < 8 && !ok; k++) { ok = (await chips().count()) > n0; if (!ok) await sleep(500); }
+    if (!ok) return false;
+  }
+  return true;
 }
 const failCount = () => groups().filter({ hasText: /Échec|Failed/ }).count();  // card text starts with the icon name "warning", so no anchor
 const bigImages = () => page.evaluate(() => [...document.querySelectorAll('main img')].filter(i => i.naturalWidth >= 512).map(i => i.src));
@@ -72,8 +108,10 @@ async function download(srcUrl, file) {
     for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
     return { b64: btoa(s), type: r.headers.get('content-type') || '' };
   }, srcUrl);
+  const buf = Buffer.from(b64, 'base64'), h = md5(buf);
+  if (known.has(h)) { console.log(`${stamp()} ${file} old tile ignored (same bytes as ${known.get(h)}), still waiting`); return ''; }
   const ext = /png/.test(type) ? 'png' : /webp/.test(type) ? 'webp' : 'jpg';
-  const dst = path.join(out, `${file}.${ext}`); fs.writeFileSync(dst, Buffer.from(b64, 'base64')); return dst;
+  const dst = path.join(out, `${file}.${ext}`); fs.writeFileSync(dst, buf); known.set(h, `${file}.${ext}`); return dst;
 }
 
 await ensureDirectMode();
@@ -83,7 +121,7 @@ for (const [k, p] of todo.entries()) {
   try {
     await scrollTop();
     const before = new Set(await bigImages()); const fails0 = await failCount();
-    if (!(await attachRef(p.prompt))) { console.log(`${stamp()} ${p.file} SKIP: reference ingredient could not be attached`); skipped++; await sleep(PACE); continue; }
+    if (!(await (p.refs ? attachRefs(p.refs) : attachRef(p.prompt)))) { console.log(`${stamp()} ${p.file} SKIP: reference ingredient could not be attached`); skipped++; await sleep(PACE); continue; }
     const b = box(); await b.click(); await page.keyboard.press('End'); await page.keyboard.insertText(p.prompt); await sleep(300);
     const g = genButton();
     if (await g.isDisabled().catch(() => true)) { console.log(`${stamp()} ${p.file} SKIP: generate button disabled (no credits or empty prompt)`); skipped++; await sleep(PACE); continue; }
@@ -92,8 +130,8 @@ for (const [k, p] of todo.entries()) {
     while (Date.now() - w0 < WAIT) {
       await sleep(2000); await scrollTop();
       if (await failCount() > fails0) { failed = true; break; }
-      const srcUrl = await newImage(before, key);
-      if (srcUrl) { await sleep(1500); const dst = await download(srcUrl, p.file); ok++; got = true; streak = 0; console.log(`${stamp()} ${p.file} ok -> ${dst} (${k + 1}/${todo.length}, ${Math.round((Date.now() - w0) / 1000)} s)`); break; }
+      const srcUrl = Date.now() - w0 < MIN_GEN ? '' : await newImage(before, key);
+      if (srcUrl) { await sleep(1500); const dst = await download(srcUrl, p.file); if (!dst) { before.add(srcUrl); continue; } ok++; got = true; streak = 0; console.log(`${stamp()} ${p.file} ok -> ${dst} (${k + 1}/${todo.length}, ${Math.round((Date.now() - w0) / 1000)} s)`); break; }
     }
     if (failed) {
       streak++; skipped++;

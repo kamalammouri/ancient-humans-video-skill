@@ -118,9 +118,26 @@
    "pov_hands": "the character's simple white cartoon hands visible at the bottom of the frame",
    "suffix": "no text, no letters, no numbers, no speech bubbles, no signs, no labels, no watermark.",
    "thumbnail": "Bold 2D cartoon illustration in internet rage-comic troll-face style, thick clean black ink outlines, saturated colours, 16:9 wide format. The recurring character redrawn as a troll-face meme: white round head, huge bulging round eyes with red veins and tiny pupils, wide trembling mouth, messy spiky black hair, leopard-spotted fur tunic, {emotion} (sweat drops, blushing cheeks, tears), in extreme close-up filling the lower two thirds of the frame, {prop}, {setting} at night with a small campfire glow, {other_figures}, a large empty band across the top third for text. {suffix}",
-   "qc": "white round head with small dot eyes (NOT bulging eyes inside the video), messy spiky black hair, leopard-spotted fur tunic, thin white stick limbs, wooden spear, thick black outlines, painted background with depth; other tribe members same design but smaller and plainer",
+   "qc": "the hero exactly as brief.json character.sheet and its reference image say (they override this line: head, eyes, hair, mustache, costume of the stage), small eyes (NOT bulging eyes inside the video), thin white stick limbs, thick black outlines, painted background with depth; other tribe members same design but smaller and plainer; in a scene of a named civilisation or living people, no white stick figures mixed with detailed humans; profile views that show one eye only are rejected",
    "insert_prefix": "Bold 2D cartoon illustration, thick clean black ink outlines, saturated colours, flat plain background, 16:9 wide format.",
-   "scene_bg_nochar": "Full painted set with real depth; any people are plain white stick figures with dot eyes, or, for a named civilisation, more detailed cartoon humans than the stick figures."
+   "scene_bg_nochar": "Full painted set with real depth; all people in the picture are drawn one single way: for a named civilisation or a living people, detailed cartoon humans with real faces, hair and clothes and no white stick figures anywhere; for a prehistoric tribe, plain white stick figures with dot eyes."
+  },
+  "oxygen-neon": {
+   "label": "Oxygen Odds : bioluminescence néon sur noir absolu, créatures en lignes lumineuses, plongeur-joueur à la combinaison orange",
+   "prefix": "Bioluminescent neon illustration on a pitch-black deep-sea background, creatures drawn with glowing contour lines and soft inner glow in cyan, electric blue and magenta, drifting glowing particles, subtle volumetric haze, high contrast, no daylight, 16:9, cinematic wide composition, large areas of pure black.",
+   "character": "Recurring character: the player, a tiny scuba diver in a bright orange drysuit with a single cyan headlamp beam and a small glowing oxygen gauge on the wrist, {costume}. Keep this exact diver design in every image and keep him small against the creature.",
+   "costume": "hovering still, headlamp on",
+   "scene_bg": "Open black water, faint glowing particles, a distant hint of the surface far above only at shallow levels.",
+   "insert_bg": "Pure black background with a faint cyan hexagonal grid, the subject centred, glowing, generous empty space.",
+   "dark": "Abyss variant: pitch black, only the creature's own bioluminescence and the diver's headlamp light the scene.",
+   "dark_scene_bg": "Pitch-black abyss, a few glowing particles, nothing else.",
+   "dark_insert_bg": "Pure black background, the subject centred and glowing.",
+   "pov_hands": "the diver's orange-gloved hands and glowing wrist gauge at the bottom of the frame, first-person view",
+   "suffix": "no text, no letters, no numbers, no HUD, no user interface, no labels, no watermark, no logos.",
+   "thumbnail": "{prefix} {prop} enormous, filling the right two-thirds, glowing eyes and teeth, {emotion}, the tiny orange diver with a cyan headlamp in the lower left, the top-left quarter pure black and empty for the HUD. {suffix}",
+   "qc": "pure black background, glowing neon contour creature (cyan/blue/magenta), tiny diver in orange drysuit with cyan headlamp, anatomically correct species, no text or HUD drawn",
+   "insert_prefix": "Bioluminescent neon infographic illustration, single glowing subject on a pure black background, 16:9, centred composition.",
+   "scene_bg_nochar": "Open black water, the creature alone, its glow the only light."
   }
  }
 }

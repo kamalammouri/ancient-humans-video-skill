@@ -35,7 +35,7 @@ def main():
     for s in seeds:
         for q in [s] + [f"{s} {m}" for m in MODS]:
             for sug in suggest(q):
-                if re.search(r"(in hindi|hindi|urdu|tamil|telugu|bangla|malayalam|reaction|reacts?|shorts?|zenn|mr\.? hell)", sug.lower()): continue   # other languages, reaction videos, channel names
+                if re.search(r"(hindi|urdu|tamil|telugu|bangla|bengali|malayalam|kannada|marathi|punjabi|arabic|reaction|reacts?|shorts?|zenn|mr\.? hell)", sug.lower()): continue   # other languages, reaction videos, channel names
                 counter[sug.lower()] += 1; examples.setdefault(sug.lower(), q)
     lines.append("\n## 1. What Americans type (YouTube autocomplete, gl=US)\n\n| Suggestion | Queries that produce it |\n|---|---|")
     for sug, c in counter.most_common(60): lines.append(f"| {sug} | {c} |")

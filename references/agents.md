@@ -217,9 +217,11 @@ Voir `visual-style.md` §6 (héros à yeux-points, jamais les yeux globuleux hor
 | Voix | **Audio director** (lance `tts.py`, mesure, corrige) | `shots.json`, `brief.voice`, `reference-mahoos.md` §3 | `voice.wav`, `timing.json`, rapport de rythme | 160–175 mots/min, pause max ≤ 0,7 s, f0 médian 120–150 Hz |
 | Images | **Image director** (test 3 prompts, lots Flow, `harvest`), puis **Image QC** par lot | `prompts.json`, planches de référence | `flow/<video>/F###.png` | 0 rejet Image QC sur la planche finale |
 | Montage | orchestrateur (`build_slideshow.py --motion-all` + lit musical) ou **Motion designer** (HyperFrames : `hf_build.py`, `check`, `snapshot`, `render`) quand le brief demande sous-titres animés ou motion design | tout ce qui précède | `out.mp4` | `analyze_video.py out.mp4` : ratio parole ≥ 0,93, plans ≤ 2,5 s ; `check` ok et planche de snapshots lue |
+| Son | **Audio director** après le montage : lit musical Openverse (`openverse.py`, CC0), mixage avec sidechain et −14 LUFS, effets Real SFX (`sfx_cues.py` puis `from_cues.py` et `mix.py --voice-safe`), SKILL.md §5 | `out.mp4`, `shots.json`, `music.mp3` ou une requête Openverse, `~/sfx-library` | `out_sfx.mp4`, `out_sfx_sfx_track.wav`, `audio/music/credits.csv` | −14 LUFS ± 1 mesuré (`ebur128`), `critique.py` lu, 3 passages écoutés par l'utilisateur, licences CC0 (ou CC BY créditées) |
 | Packaging | **Packaging strategist** (au brief avec le Story architect, puis avant publication) | `keywords.py` sur 3 amorces, script, vidéos publiées | 5 titres notés, paire A/B, description, tags | chaque titre soutenu par une requête réelle de `keywords.md` |
 | Miniature, textes | **English copy editor** | titre, miniature, chapitres, description | corrections | aucune faute |
-| Livraison | **Publication checker** | `publication.md`, `timing.json` | fiche corrigée ou « OK » | « OK » |
+| Posts YouTube | **Community manager** (après le packaging, une fois la vidéo montée) | `publication.md`, `facts.md`, `script.md`, `timing.json`, images Flow | `posts-youtube.md` + `posts/P1.jpg`… | les 4 posts au gabarit de `publication-seo.md` §8, chaque chiffre trouvé dans `facts.md`, English copy editor passé |
+| Livraison | **Publication checker** | `publication.md`, `posts-youtube.md`, `timing.json` | fiche corrigée ou « OK » | « OK » |
 
 ### Script writer (le rédacteur : écrit comme un humain, dans la voix de la chaîne)
 ```
@@ -280,7 +282,7 @@ Tes tâches, dans l'ordre :
    par l'orchestrateur, connexion faite par l'utilisateur), faire la planche, et comparer vignette par vignette à la
    référence : tête, yeux, cheveux, tunique, épaisseur de trait, profondeur du décor. Ajuster le prompt (jamais la fiche
    du style) et refaire le test jusqu'à ce que le héros soit reconnaissable à 100 px.
-3. Lots de 30 (`qbatch.mjs`), 30 min entre deux, `harvest.mjs` pour les manquantes, `convert.py`, planche par lot
+3. Lots enchaînés sans pause (`qbatch.mjs`, choix de l'utilisateur ; au 3ᵉ refus consécutif le script s'arrête : le signaler et demander), `harvest.mjs` pour les manquantes, `convert.py`, planche par lot
    (`sheets.py`), puis lancer l'agent Image QC sur chaque planche et régénérer ses rejets.
 4. Miniature : une image avec le gabarit `thumbnail` du style, puis `thumb.py` avec le texte validé par l'English copy editor.
 Rends : le nombre d'images générées / reprises / rejetées, la planche finale, et « IMAGES OK » quand Image QC n'a plus de
@@ -293,7 +295,7 @@ Script : [SCRIPT.MD]  Brief : [BRIEF.JSON]  Dossier Flow : flow/[VIDEO]
 Tu montes une vidéo « How did ancient humans…? » avec HyperFrames (HTML rendu image par image ; charge le skill `hyperframes`
 et lis `references/format.md`, `captions.md`, `motion.md`). Entrées : `shots.json` (avec `start`), `voice.wav`, `timing.json`,
 les images `flow/<video>/`, `music.mp3` si fourni. Étapes :
-1. `python scripts/hf_build.py shots.json voice.wav timing.json hf/ --flow flow/<video> --music music.mp3` : projet généré
+1. `python scripts/hf_build.py shots.json voice.wav timing.json hf/ --flow flow/<video> --music music.mp3 --split-long 2.5` : projet généré
    (scènes par chapitre, zoom/pan par `frame`, titres cinétiques, piste de sous-titres mot à mot, audio).
 2. `npx hyperframes check hf --json` : corrige chaque erreur dans les fichiers générés OU dans `hf_build.py` si l'erreur se
    répéterait (jamais à la main dans un seul fichier ce qui est produit par le script), jusqu'à `ok: true` ; pèse chaque
@@ -304,7 +306,7 @@ les images `flow/<video>/`, `music.mp3` si fourni. Étapes :
 4. Motion design au-delà du gabarit : les phrases-choc de 1 à 3 mots peuvent devenir des titres (`family: "title"` dans
    `shots.json`) ; un chiffre peut être un bloc du registre (`npx hyperframes catalog --tag counter --json`) ; une transition
    avec cause (dip cut avant le twist) ; jamais de loop qui respire, jamais de titre qui glisse après s'être posé (motion.md).
-5. `npx hyperframes preview hf` pour l'utilisateur, puis `npx hyperframes render hf` en arrière-plan (≈ 170 ms par image).
+5. `npx hyperframes preview hf` pour l'utilisateur, puis `HF_SEGMENTED_CAPTURE=true npx hyperframes render hf --workers 10 --gpu` en arrière-plan (4 workers par défaut = 1 h pour 12 min ; 10 workers sur 12 cœurs, ≈ 256 Mo de RAM chacun ; `--resume` reprend un rendu coupé).
 Rends : le rapport `check`, la planche de snapshots commentée, le chemin du mp4, et « MONTAGE OK ».
 Shots : [SHOTS.JSON]  Flow : flow/[VIDEO]  Musique : [music.mp3 ou aucune]
 ```
@@ -338,8 +340,28 @@ les mots que les Américains tapent réellement, pas ceux que tu imagines.
 5. Ciblage USA : orthographe et unités américaines, un lieu ou un repère américain dans le titre ou la description quand le
    sujet s'y prête, langue de la vidéo English (United States), publication 12 h–14 h ET (`references/ciblage-usa.md`).
 Rends : keywords.md résumé en 5 lignes ; le tableau des 5 titres notés ; le titre retenu + la paire A/B ; la description
-complète ; les tags avec leur longueur ; 2 risques (un titre proche déjà en place, une promesse que le script ne tient pas).
+complète ; les tags avec leur longueur ; le BLOC SHORT (titre ≤ 100 caractères + `#shorts` et 2 alternatives, description de 2-3 lignes avec le lien vers la longue,
+4 à 6 hashtags, 8 à 12 tags, commentaire épinglé), écrit aussi dans `short-titre-description-tags.txt` ; 2 risques (un titre proche déjà en place, une promesse que le script ne tient pas).
 N'écris jamais un titre que keywords.md ne soutient par aucune requête réelle.
 Sujet : [SUJET]  Script ou angle : [SCRIPT / ANGLE]  Vidéos déjà publiées : [LISTE]  Gabarit : [GABARIT DU FORMAT]
 ```
 Sources gratuites de l'outil : l'autocomplétion YouTube (`suggestqueries.google.com`, `gl=US`) et la page de résultats via yt-dlp ; source payante optionnelle : le connecteur MCP vidIQ (recherche de mots-clés, outliers, stats de chaînes), à brancher par l'utilisateur. Exemple de rapport : `mahoos-analysis/keywords-sleep.md` (4 nov. 2026 : la requête « what did ancient humans do at night » porte une vidéo à 8,1 M de vues, 32 titres sur 40 sont des questions, ouvertures « what did » et « how did », 53 caractères en moyenne).
+
+### Community manager (posts YouTube : l'onglet Posts de la chaîne, autour de chaque vidéo)
+```
+Tu écris les posts YouTube (onglet Posts de la chaîne) qui accompagnent une vidéo « How did ancient humans…? » pour un public
+américain. Lis d'abord `references/publication-seo.md` §8 (types de posts, limites, calendrier des 4 posts), puis
+`publication.md` (titre retenu, lien, chapitres), `facts.md`, `script.md` et `timing.json`. Écris 4 posts :
+P1 la veille (sondage teaser, sans lien), P2 une heure après la mise en ligne (post image + lien), P3 le lendemain (quiz sur le
+fait le plus surprenant, explication avec l'horodatage du chapitre), P4 le surlendemain (sondage « next video » sur 4 sujets
+qui passent le test du geste, SKILL.md §1). Règles : anglais américain, 2ᵉ personne, 1 à 3 phrases courtes avant le lien ou
+la question, ton de la voix de la vidéo (un geste, une image, une question), 0 à 2 hashtags, aucun « smash like », aucun chiffre
+absent de `facts.md`, les mêmes règles de sensibilité que la vidéo (rien d'explicite, aucune moquerie d'une croyance ou d'un
+peuple, sujet intime traité de loin). Options de sondage texte ≤ 65 caractères, de sondage image ≤ 36, 4 options au plus,
+longueurs comptées par code. Images : choisis dans `flow/<video>/` l'image la plus forte pour chaque post à image, puis
+`python scripts/thumb.py flow/<video>/F###.png posts/P2.jpg "NO PADS!!" --square=<x>` (x = centre de la coupe carrée, de 0 à 1,
+choisi pour garder le personnage entier ; texte "" pour une image sans bandeau) ; regarde chaque image produite.
+Écris `posts-youtube.md` : pour chaque post, le type, la date et l'heure (ET + heure locale de l'utilisateur), le texte prêt
+à coller, les options, la bonne réponse et l'explication du quiz, l'image. Rends le fichier et les images.
+Vidéo : [DOSSIER]  Date de mise en ligne : [DATE ET HEURE ET]
+```

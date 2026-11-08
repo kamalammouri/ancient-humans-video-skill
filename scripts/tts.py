@@ -1,7 +1,7 @@
 """Voice track of the slideshow: one audio clip per shot, concatenated, with exact start times.
 
   python tts.py shots.json [--engine gemini|edge] [--voice NAME] [--style "..."] [--rate +0%] [--model ID] [--gap 0.35]
-                           [--brief brief.json] [--out voice.wav] [--timing timing.json] [--cache tts] [--pace 2000] [--only 1,2,3]
+                           [--brief brief.json] [--out voice.wav] [--timing timing.json] [--cache tts] [--pace 2000] [--only 1,2,3] [--speed 0.9]
 
 Engine, voice, style, rate and language come from brief.json ("voice": {"engine", "name", "style", "rate", "model"}, "voice_language"),
 each overridable by a flag. The engine is chosen by the user at the pre-production brief (references/brief.md); nothing is assumed.
@@ -23,7 +23,8 @@ Always test on three shots first: --only 1,2,3 , listen, then run the full list.
 """
 import json, sys, os, time, wave, pathlib, subprocess, base64, io, shutil
 
-SR = 24000
+SR = 44100   # ElevenLabs sends 44.1 kHz; the old 24 kHz cut everything above 12 kHz (air, s and t of the voice): 7 Nov 2026.
+             # Clips cached at 24 kHz are only upsampled: delete tts/eleven/*.wav to get the full band back (costs the characters again)
 DEFAULT_MODEL = "gemini-3.8-flash-tts"
 DEFAULT_VOICE = {"gemini": {"en": "Kore", "fr": "Kore"}, "edge": {"en": "en-US-GuyNeural", "fr": "fr-FR-HenriNeural"},
                  "eleven": {"en": "Brian", "fr": "Brian"}, "voicebox": {"en": "Narrator Ryan (qwen)", "fr": "Narrator Ryan (qwen)"}}
@@ -67,10 +68,10 @@ def pcm_to_wav_bytes(pcm, sr=SR):
     return buf.getvalue()
 
 def read_frames(path):
-    """Return the 16-bit mono 24 kHz frames of a WAV, converting through ffmpeg when the format differs."""
+    """Return the 16-bit mono SR frames of a WAV, converting through ffmpeg when the format differs."""
     with wave.open(str(path), "rb") as w:
         if w.getnchannels() == 1 and w.getsampwidth() == 2 and w.getframerate() == SR: return w.readframes(w.getnframes())
-    tmp = path.with_suffix(".24k.wav"); to_wav24(path, tmp)
+    tmp = path.with_suffix(".sr.wav"); to_wav24(path, tmp)
     with wave.open(str(tmp), "rb") as w: frames = w.readframes(w.getnframes())
     tmp.unlink(); return frames
 
@@ -84,7 +85,7 @@ def tts_gemini(text, voice, style, model, dst):
             config=types.GenerateContentConfig(response_modalities=["AUDIO"], speech_config=types.SpeechConfig(
                 voice_config=types.VoiceConfig(prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice)))))
         pcm = r.candidates[0].content.parts[0].inline_data.data
-        dst.write_bytes(pcm_to_wav_bytes(pcm if isinstance(pcm, bytes) else base64.b64decode(pcm))); return
+        dst.write_bytes(pcm_to_wav_bytes(pcm if isinstance(pcm, bytes) else base64.b64decode(pcm), 24000)); return   # Gemini PCM is 24 kHz
     content = {"type": "text", "text": text}
     if style: content["annotations"] = [{"type": "speech_metadata", "style": style}]
     it = client.interactions.create(model=model, input=[{"type": "user_input", "content": [content]}],
@@ -117,11 +118,11 @@ def eleven_voice_id(name):
 def eleven_quota():
     s = json.loads(eleven_req("/user/subscription")); return s["character_limit"] - s["character_count"]
 
-def tts_eleven(text, voice_id, model, dst):
+def tts_eleven(text, voice_id, model, dst, speed=1.0):
     """with-timestamps endpoint: the audio plus one end time per character, saved next to the clip (<name>.align.json) so that
     timing.json can carry the per-character format ({"chars", "end"}) that build_slideshow.py and hf_build.py read for word timings."""
     import urllib.error
-    body = json.dumps({"text": text, "model_id": model, "voice_settings": {"stability": 0.55, "similarity_boost": 0.75, "style": 0.0}}).encode()
+    body = json.dumps({"text": text, "model_id": model, "voice_settings": {"stability": 0.55, "similarity_boost": 0.75, "style": 0.0, "speed": speed}}).encode()
     try: raw = eleven_req(f"/text-to-speech/{voice_id}/with-timestamps?output_format=mp3_44100_128", body, {"Content-Type": "application/json"})
     except urllib.error.HTTPError as e:
         if e.code in (401, 402): print(f"ElevenLabs refused ({e.code}): {e.read()[:200]} -> fall back to --engine edge"); sys.exit(3)
@@ -196,7 +197,7 @@ def synth(engine, text, cfg, dst, attempts=4):
     for n in range(attempts):
         try:
             if engine == "gemini": tts_gemini(text, cfg["voice"], cfg["style"], cfg["model"], dst)
-            elif engine == "eleven": tts_eleven(text, cfg["voice_id"], cfg["model"], dst)
+            elif engine == "eleven": tts_eleven(text, cfg["voice_id"], cfg["model"], dst, cfg["speed"])
             elif engine == "voicebox": tts_voicebox(text, cfg["voice"], cfg["model"], cfg["style"], cfg["lang"], dst, cfg.get("seed"))
             else: tts_edge(text, cfg["voice"], cfg["rate"], dst)
             return True
@@ -220,7 +221,9 @@ def main(args):
     cfg = {"voice": arg_value(args, "--voice", bv.get("name") or DEFAULT_VOICE[engine].get(lang, DEFAULT_VOICE[engine]["en"])),
            "style": arg_value(args, "--style", bv.get("style") if bv.get("style") is not None else DEFAULT_STYLE),
            "rate": arg_value(args, "--rate", bv.get("rate") or "+0%"),
-           "model": arg_value(args, "--model", bv.get("model") or DEFAULT_MODEL)}
+           "model": arg_value(args, "--model", bv.get("model") or DEFAULT_MODEL),
+           "speed": float(arg_value(args, "--speed", bv.get("speed") or 1.0))}   # ElevenLabs only (0.7..1.2); a speed != 1 is part of the cache key
+    vtag = lambda v: v if cfg["speed"] == 1.0 else f"{v}@{cfg['speed']}"
     gap, pace = float(arg_value(args, "--gap", 0.35)), int(arg_value(args, "--pace", 2000 if engine == "gemini" else 300))
     only = {int(x) for x in arg_value(args, "--only", "").split(",") if x.strip()}
     cache = pathlib.Path(arg_value(args, "--cache", "tts")) / engine; cache.mkdir(parents=True, exist_ok=True)
@@ -239,7 +242,7 @@ def main(args):
         if cfg["model"] == DEFAULT_MODEL: cfg["model"] = ELEVEN_MODEL
         cfg["voice_id"] = eleven_voice_id(cfg["voice"])
         need = sum(len((s.get("sentence") or "").strip()) for s in shots if (s.get("sentence") or "").strip() and (not only or s["i"] in only)
-                   and not ((cache / f"S{s['i']:04d}.txt").exists() and (cache / f"S{s['i']:04d}.txt").read_text(encoding="utf-8") == f"{cfg['voice']}|{(s.get('sentence') or '').strip()}"))
+                   and not ((cache / f"S{s['i']:04d}.txt").exists() and (cache / f"S{s['i']:04d}.txt").read_text(encoding="utf-8") == f"{vtag(cfg['voice'])}|{(s.get('sentence') or '').strip()}"))
         left = eleven_quota(); print(f"ElevenLabs quota: {left} characters left, {need} needed")
         if left < need: print("quota too short -> fall back to --engine edge"); sys.exit(3)
     print(f"engine {engine} | voice {cfg['voice']} | {'model ' + cfg['model'] + ' | style ' + repr(cfg['style']) if engine == 'gemini' else 'model ' + cfg['model'] if engine in ('eleven', 'voicebox') else 'rate ' + cfg['rate']} | lang {lang}")
@@ -253,7 +256,7 @@ def main(args):
         if spk and spk in voices: vcfg["voice"] = voices[spk]
         elif spk: unknown.add(spk)
         name = f"S{s['i']:04d}"; dst, txt = cache / f"{name}.wav", cache / f"{name}.txt"   # by shot, not by image: one image may carry several sentences
-        key = f"{vcfg['voice']}|{text}"
+        key = f"{vtag(vcfg['voice'])}|{text}"
         if dst.exists() and txt.exists() and txt.read_text(encoding="utf-8") == key: skipped += 1; continue
         print(f"#{s['i']:>3} {name} [{spk or 'narrator'} / {vcfg['voice']}]: {text[:60]}")
         ok = synth(engine, text, vcfg, dst)

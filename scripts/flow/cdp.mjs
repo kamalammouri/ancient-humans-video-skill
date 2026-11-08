@@ -26,7 +26,8 @@ export async function attach() {
   catch (e) { console.error(`No Chrome on ${CDP}. Start it first: node scripts/flow/browser.mjs (keep it running).`); process.exit(2); }
   const ctx = browser.contexts()[0] || await browser.newContext();
   const pages = ctx.pages();
-  let page = pages.find(p => /flow\.google\.com|labs\.google/.test(p.url()));
+  // FLOW_TAB=last drives the newest Flow tab, so the user can keep working in the first one (5 Nov 2026: a user edit in the shared tab broke a batch)
+  let page = pages[process.env.FLOW_TAB === 'last' ? 'findLast' : 'find'](p => /flow\.google\.com|labs\.google/.test(p.url()));
   if (!page) {                      // the user browsed elsewhere in that tab or closed it: open Flow in a NEW tab, never touch their tabs
     const url = process.env.FLOW_PROJECT || FLOW_URL;
     console.log(`${stamp()} no Flow tab found: opening ${url} in a new tab`);

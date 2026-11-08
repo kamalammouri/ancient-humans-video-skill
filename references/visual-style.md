@@ -27,7 +27,7 @@ Sans `frame`, `--motion-all` alterne zoom avant et arrière. Numérotation des f
 
 ## 2. Budget et rythme
 
-- **8 à 10 images Flow par minute** (`python scripts/prompts.py shots.json --flow-per-min 10`), soit 100 à 120 pour 12 min, en lots de 30 (`qbatch.mjs`, 30 min de pause entre deux lots).
+- **8 à 10 images Flow par minute** (`python scripts/prompts.py shots.json --flow-per-min 10`), soit 100 à 120 pour 12 min, en continu avec `qbatch.mjs`, sans pause entre les lots (choix de l'utilisateur du 4 novembre 2026) ; au 3ᵉ refus consécutif le script s'arrête et on demande à l'utilisateur s'il faut attendre.
 - **Familles cibles** : scènes avec le héros 50 % ; scènes et objets sans le héros 30 % (`nochar: true` : éléphants, chocolat, une rangée de Romains, un parchemin) ; images symboliques sans le héros 15 % (`family: "metaphor"` : une double hélice d'ADN qui brille, un cerveau en coupe orange, une chambre minuscule flottant dans le noir, une main géante qui éteint le monde) ; symboles et chiffres 5 % (`html` : frise avec une date, chiffre, carte-titre, maison barrée de rouge).
 - Jamais plus de 2 inserts de suite ; jamais 3 images sans le héros de suite dans les temps 3 et 4 ; un gros plan émotif du héros (`composition: "close"`, sueur, rougeur, yeux écarquillés mais **pas** les yeux globuleux de la miniature) au moment le plus gênant de la vidéo ; au moins un `overhead` (le village vu de haut) et un `pov`.
 - L'image du geste d'ouverture (la chambre, la porte) revient au temps 8 en version néon et au temps 9 telle quelle : même `file` ou même scène regénérée.

@@ -19,13 +19,19 @@ else timing.json as a list of sentence starts.
 import json, os, pathlib, re, shutil, subprocess, sys
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import build_slideshow as bs
+from PIL import Image, ImageChops
 
 W, H = 1920, 1080
+CAP_TOP = 860   # px; the caption box spans ~897-984 (bottom 96 px): flat-paper inserts drawn lower are shrunk above it
+FIT = {}        # asset path -> (scale, background colour) for those inserts
 FRAMES = {   # (scale from, scale to, x from, x to) in px of the 1920 canvas; y stays centred
     "wide": (1.00, 1.07, 0, 0), "zoom": (1.15, 1.30, 0, 0), "zoom-out": (1.30, 1.10, 0, 0),
     "pan-left": (1.20, 1.20, 192, -192), "pan-right": (1.20, 1.20, -192, 192),
     "left": (1.25, 1.29, 240, 240), "right": (1.25, 1.29, -240, -240),
 }
+
+SPLIT = 0.0   # seconds; --split-long N splits every moving clip longer than N into two framings (0 = off)
+SUBCUT = {"wide": "zoom", "zoom": "pan-left", "zoom-out": "zoom", "pan-left": "zoom", "pan-right": "zoom", "left": "zoom", "right": "zoom"}
 
 def esc(t): return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
@@ -72,8 +78,17 @@ def chapter_scene(cid, shots_in, t0, assets_rel, accent):
             tw.append(f'tl.fromTo("#{sid} .w", {{opacity: 0, filter: "blur(8px)"}}, {{opacity: 1, filter: "blur(0px)", duration: 0.13, ease: "power4.out", stagger: 0.067}}, {st + 0.1:.3f});')
             tw.append(f'tl.to("#{sid} .tt", {{opacity: 0, filter: "blur(6px)", duration: 0.15, ease: "power3.in"}}, {st + du - 0.16:.3f});')
         else:
-            clips.append(f'<div id="{sid}" class="clip" data-start="{st:.3f}" data-duration="{du:.3f}" style="z-index:{z}"><div class="kb"><img src="{assets_rel[s["i"]]}" alt=""></div></div>')
-            if s["family"] not in ("card", "chart", "html"): tw.append(kb_tween(f"#{sid} .kb", s.get("frame", "wide"), st, du))
+            moving = s["family"] not in ("card", "chart", "html"); fr = s.get("frame", "wide")
+            parts = [(st, du, fr)]
+            if moving and SPLIT and du > SPLIT:   # --split-long: a long clip becomes ceil(du/N) framings of the same image (the reference cuts every 2 s)
+                k = -int(-du // SPLIT); h = du / k; parts = []
+                for n in range(k): parts.append((st + n * h, h, fr)); fr = SUBCUT.get(fr, "zoom")
+            for n, (pst, pdu, pfr) in enumerate(parts):
+                pid = sid if n == 0 else f"{sid}{chr(97 + n)}"; src = assets_rel[s["i"]]
+                fit = FIT.get(src) if not moving else None   # static insert whose labels would sit under the captions
+                bg, ist = (f";background:{fit[1]}", f' style="transform:scale({fit[0]:.3f});transform-origin:50% 0"') if fit else ("", "")
+                clips.append(f'<div id="{pid}" class="clip" data-start="{pst:.3f}" data-duration="{pdu:.3f}" style="z-index:{z}{bg}"><div class="kb"><img src="{src}" alt=""{ist}></div></div>')
+                if moving: tw.append(kb_tween(f"#{pid} .kb", pfr, pst, pdu))
     return f"""<template>
 <style>
 #root {{ position: absolute; inset: 0; background: #0b0f1a; overflow: hidden; }}
@@ -103,9 +118,12 @@ def captions_scene(gs, accent):
         clips.append(f'<div id="{gid}" class="clip cg" data-start="{a:.3f}" data-duration="{b - a:.3f}" style="z-index:{n}"><p>{spans}</p></div>')
         tw.append(f'tl.fromTo("#{gid} p", {{opacity: 0, y: 14}}, {{opacity: 1, y: 0, duration: 0.14, ease: "power3.out"}}, {a:.3f});')
         for k, w in enumerate(g):
-            tw.append(f'tl.fromTo("#{gid}w{k}", {{scale: 1, color: "#ffffff"}}, {{scale: 1.08, color: "{accent}", duration: 0.08, ease: "power2.out"}}, {max(a, w["start"]):.3f});')
-        tw.append(f'tl.to("#{gid} p", {{opacity: 0, duration: 0.12, ease: "power2.in"}}, {b - 0.12:.3f});')
-        tw.append(f'tl.set("#{gid} p", {{opacity: 0, visibility: "hidden"}}, {b:.3f});')   # hard kill on the inner block, never on the .clip
+            ws = max(a, w["start"])   # pop then settle: a word left at 1.08 grew into its neighbour (long words looked glued)
+            tw.append(f'tl.fromTo("#{gid}w{k}", {{scale: 1, color: "#ffffff"}}, {{scale: 1.08, color: "{accent}", duration: 0.08, ease: "power2.out"}}, {ws:.3f});')
+            tw.append(f'tl.to("#{gid}w{k}", {{scale: 1, duration: 0.12, ease: "power2.inOut"}}, {ws + 0.08:.3f});')
+        fo = max(a + 0.15, b - 0.12)   # a group shorter than 0.27 s: the fade-out starts after the fade-in ends (check: overlapping_gsap_tweens)
+        tw.append(f'tl.to("#{gid} p", {{opacity: 0, duration: {max(0.05, b - fo):.3f}, ease: "power2.in"}}, {fo:.3f});')
+        tw.append(f'tl.set("#{gid} p", {{opacity: 0, visibility: "hidden"}}, {b + 0.001:.3f});')   # hard kill on the inner block, never on the .clip
     return f"""<template>
 <style>
 #root {{ position: absolute; inset: 0; }}
@@ -125,11 +143,15 @@ window.__timelines["captions"] = tl;
 """
 
 def main():
-    a = [x for x in sys.argv[1:] if not x.startswith("--") and (sys.argv[sys.argv.index(x) - 1] not in ("--flow", "--music", "--transcript", "--accent"))]
+    a = [x for x in sys.argv[1:] if not x.startswith("--") and (sys.argv[sys.argv.index(x) - 1] not in ("--flow", "--music", "--transcript", "--accent", "--split-long"))]
     opt = lambda k, d=None: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else d
+    globals()["SPLIT"] = float(opt("--split-long", 0))
     shots_f, voice, timing_f, proj = a[0], a[1], a[2], pathlib.Path(a[3])
     flow_dir = pathlib.Path(opt("--flow", "flow")); music = opt("--music"); accent = opt("--accent", "#F2C446")
     shots = json.load(open(shots_f, encoding="utf-8")); timing = json.load(open(timing_f, encoding="utf-8"))
+    for s in shots:   # make_shots.T() writes titles as html cards: render them as kinetic titles (last word in accent colour)
+        if s.get("family") == "html" and s.get("html", {}).get("type") == "title":
+            s["family"], s["title"] = "title", s["html"]["title"]
     starts = bs.starts_from_timing(shots, timing)
     FF = bs.imageio_ffmpeg.get_ffmpeg_exe()
     hh, mm, ss = subprocess.run([FF, "-i", voice], capture_output=True, text=True).stderr.split("Duration: ")[1].split(",")[0].split(":")
@@ -144,7 +166,10 @@ def main():
         if key not in done:
             im = bs.render(s, flow_dir)
             if im is None: missing.append(key); im = bs.fallback(s["sentence"])
-            name = f"{key}.png"; im.convert("RGB").resize((W, H)).save(proj / "assets" / name, compress_level=1); done[key] = f"assets/{name}"
+            name = f"{key}.png"; im = im.convert("RGB").resize((W, H)); im.save(proj / "assets" / name, compress_level=1); done[key] = f"assets/{name}"
+            if s["family"] == "html":   # flat paper insert whose drawing reaches the caption band: shrink it from the top (textured bleed = bbox to the edge = left alone)
+                bgc = im.getpixel((2, 2)); box = ImageChops.difference(im, Image.new("RGB", im.size, bgc)).convert("L").point(lambda v: 255 if v > 24 else 0).getbbox()
+                if box and CAP_TOP < box[3] < H - 2: FIT[done[key]] = (CAP_TOP / box[3], "#%02x%02x%02x" % bgc)
         assets_rel[s["i"]] = done[key]
     # chapters: split at "title" shots (a title opens a chapter), else every ~60 s, so each scene stays small
     chapters, cur, t_open = [], [], 0.0
@@ -166,6 +191,8 @@ def main():
         elif isinstance(timing, dict) and "chars" in timing: words = words_from_eleven(timing)
         else: words = words_even(shots, starts, ends)
         words = [w for w in words if w["start"] < dur - 0.3]
+        titles = [(a_, b_) for s, a_, b_ in zip(shots, starts, ends) if s["family"] == "title"]   # the title already says it: no caption on top
+        words = [w for w in words if not any(a_ - 0.05 <= w["start"] < b_ for a_, b_ in titles)]
         (proj / "compositions" / "captions.html").write_text(captions_scene(groups(words), accent), encoding="utf-8")
         cap_host = f'<div id="captions" data-composition-id="captions" data-composition-src="compositions/captions.html" data-start="0" data-duration="{dur:.3f}" data-track-index="2" data-track-kind="captions" data-width="{W}" data-height="{H}" style="z-index:5"></div>'
     audio = [f'<audio id="voice" class="clip" src="assets/voice.wav" data-start="0" data-duration="{dur:.3f}" data-track-index="3" data-volume="1"></audio>']

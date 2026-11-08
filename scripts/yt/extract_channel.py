@@ -5,7 +5,7 @@ Nécessite yt-dlp (pip install yt-dlp). Ajoute --no-check-certificate si un prox
 """
 import subprocess, sys, json
 
-args = [a for a in sys.argv[1:] if not a.startswith('--')]
+args = [a for i, a in enumerate(sys.argv[1:], 1) if not a.startswith('--') and sys.argv[i - 1] != '--max']
 maxn = '15'
 if '--max' in sys.argv:
     maxn = sys.argv[sys.argv.index('--max') + 1]
